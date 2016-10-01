@@ -8,6 +8,7 @@ using Discord;
 using System.IO;
 using unirest_net.http;
 using IA.Events;
+using IA.Node;
 
 namespace Agdgbot
 {
@@ -387,6 +388,68 @@ namespace Agdgbot
                     e.Channel.SendMessage($"Messages Recieved: {messagesRecieved}\nAmount were shitposts involving me: {shitpostsDoneWithMentions}\n\nUptime: {(DateTime.Now - uptime).ToString().Split('.')[0]}\n\n Total Users: {e.Server.UserCount}\n Total Nodevs: {nodevs()}");
                 };
             });
+
+            // statistics
+            bot.Events.AddCommandEvent(x =>
+            {
+                x.name = "purge";
+                x.accessibility = EventAccessibility.ADMINONLY;
+                x.processCommand = (e, arg) =>
+                {
+                    User u = e.Channel.Users.First(z => z.Id == ulong.Parse(arg.Trim('<', '>', '@', '!')));
+                    e.Channel.DownloadMessages();
+
+                    List<Message> deleteMessages = new List<Message>();
+                    deleteMessages.Add(e.Message);
+
+
+                    foreach(Message m in e.Channel.Messages)
+                    {
+                        if(m.User == u)
+                        {
+                            deleteMessages.Add(m);
+                            Log.Message(m.Text);
+                        }
+                    }
+
+                    e.Channel.DeleteMessages(deleteMessages.ToArray());
+                    e.Channel.SendMessageAndDelete("Deleted " + deleteMessages.Count + " messages", 4);
+                };
+            });
+
+            Program.bot.Events.AddMentionEvent(x =>
+            {
+                x.name = "sss";
+                x.accessibility = EventAccessibility.ADMINONLY;
+                x.checkCommand = (e, a, c) =>
+                {
+                    Profile me = bot.Client.CurrentUser;
+                    return e.Message.RawText.StartsWith(me.Mention) && (e.Channel.Id == 121566911837241344 || e.Channel.Id == 226393903216066561);
+                };
+                x.processCommand = (e, arg) =>
+                {
+                    if(e.Message.RawText.Contains(" ban pussybot"))
+                    {
+
+                    }
+                };
+            });
+
+            //// Cleverbot
+            //Program.bot.Events.AddMentionEvent(x =>
+            //{
+            //    x.name = "cleverbot";
+            //    x.cooldown = 30;
+            //    x.checkCommand = (e, a, c) =>
+            //    {
+            //        Profile me = bot.Client.CurrentUser;
+            //        return e.Message.RawText.StartsWith(me.Mention) && (e.Channel.Id == 121566911837241344 || e.Channel.Id == 226393903216066561);
+            //    };
+            //    x.processCommand = async (e, arg) =>
+            //    {
+            //        await e.Channel.SendMessage(await Node.RunAsync("c", arg));
+            //    };
+            //});
 
             bot.Client.MessageReceived += Client_MessageReceived;
             bot.Client.Ready += Client_Ready;
