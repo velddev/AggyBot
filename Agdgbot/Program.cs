@@ -16,9 +16,11 @@ namespace Agdgbot
     {
         static Role colorStart;
         static Role profStart;
+        static Role mutedRole;
 
         static ulong startColorId;
         static ulong startProfId;
+        static ulong mutedRoleId;
 
         static string idFilePath = Directory.GetCurrentDirectory() + "/ids.txt";
 
@@ -38,7 +40,7 @@ namespace Agdgbot
 
             uint outp = 0;
 
-            foreach(User x in s.Users)
+            foreach (User x in s.Users)
             {
                 if (x.HasRole(s.FindRoles("nodev").ElementAt(0)) || x.Roles.Count() <= 1) outp++;
             }
@@ -48,14 +50,16 @@ namespace Agdgbot
 
         static DateTime uptime;
 
-        static void Main(string[] args)
+        static void Main(string[] args) => new Program().Start();
+
+        void Start()
         {
-            uptime = DateTime.Now;  
+            uptime = DateTime.Now;
 
             bot = new IABot(x =>
             {
                 x.botName = "Aggy";
-                x.botToken = "Bot MTg5ODA5NzYzMDkyMDA0ODY1.Cr2HZw.7LyY-V2DgHvk79NuL5QHwykN_qw";
+                x.botToken = "Bot " + GetToken();
                 x.botIdentifier = ">";
             });
             bot.AddDeveloper(121919449996460033);
@@ -65,7 +69,6 @@ namespace Agdgbot
             bot.AddDeveloper(191698267313143808);
             bot.AddDeveloper(101603144827424768);
             bot.AddDeveloper(101389503087792128);
-
 
             // set color
             bot.Events.AddCommandEvent(x =>
@@ -389,7 +392,7 @@ namespace Agdgbot
                 };
             });
 
-            // statistics
+            // purge
             bot.Events.AddCommandEvent(x =>
             {
                 x.name = "purge";
@@ -417,44 +420,73 @@ namespace Agdgbot
                 };
             });
 
-            Program.bot.Events.AddMentionEvent(x =>
+            // mute
+            bot.Events.AddCommandEvent(x =>
             {
-                x.name = "sss";
-                x.accessibility = EventAccessibility.ADMINONLY;
-                x.checkCommand = (e, a, c) =>
+                x.name = "mute";
+                x.processCommand = async (e, arg) =>
                 {
-                    Profile me = bot.Client.CurrentUser;
-                    return e.Message.RawText.StartsWith(me.Mention) && (e.Channel.Id == 121566911837241344 || e.Channel.Id == 226393903216066561);
-                };
-                x.processCommand = (e, arg) =>
-                {
-                    if(e.Message.RawText.Contains(" ban pussybot"))
+                    if (e.Message.MentionedUsers.Count() > 0 && e.Message.RawText.Split(' ').Length > 1)
                     {
+                        int minutes = int.Parse(e.Message.RawText.Split(' ')[2]);
+
+                        await e.Message.MentionedUsers.ElementAt(0).AddRoles(e.Server.FindRoles("muted").First());
+                        await e.Channel.SendMessageAndDelete($"muted `{e.Message.MentionedUsers.First().Name}` for `{minutes}` minutes", 5);
+                        await Task.Delay(minutes * 60000);
+                        await e.Message.MentionedUsers.ElementAt(0).RemoveRoles(e.Server.FindRoles("muted").First());
 
                     }
                 };
             });
 
-            //// Cleverbot
-            //Program.bot.Events.AddMentionEvent(x =>
-            //{
-            //    x.name = "cleverbot";
-            //    x.cooldown = 30;
-            //    x.checkCommand = (e, a, c) =>
-            //    {
-            //        Profile me = bot.Client.CurrentUser;
-            //        return e.Message.RawText.StartsWith(me.Mention) && (e.Channel.Id == 121566911837241344 || e.Channel.Id == 226393903216066561);
-            //    };
-            //    x.processCommand = async (e, arg) =>
-            //    {
-            //        await e.Channel.SendMessage(await Node.RunAsync("c", arg));
-            //    };
-            //});
+            // help 
+            bot.Events.AddCommandEvent(x =>
+            {
+                x.name = "help";
+                x.processCommand = async (e, arg) =>
+                {
+                    await e.User.SendMessage(await bot.Events.ListCommands(e));
+                };
+            });
+
+            // Cleverbot
+            bot.Events.AddMentionEvent(x =>
+            {
+                x.name = "cleverbot";
+                x.cooldown = 30;
+                x.checkCommand = (e, a, c) =>
+                {
+                    Profile me = bot.Client.CurrentUser;
+                    return e.Message.RawText.StartsWith(me.Mention) && (e.Channel.Id == 121566911837241344 || e.Channel.Id == 226393903216066561);
+                };
+                x.processCommand = async (e, arg) =>
+                {
+                    Log.Message(arg);
+                    await e.Channel.SendMessage(await Node.RunAsync("c", arg));
+                };
+            });
 
             bot.Client.MessageReceived += Client_MessageReceived;
             bot.Client.Ready += Client_Ready;
             bot.Client.ServerAvailable += Client_ServerAvailable;
             bot.Connect();
+        }
+
+        /// <summary>
+        /// gets token from settings.cnf
+        /// </summary>
+        /// <returns>string with for a key to access the bot account</returns>
+        public string GetToken()
+        {
+            //Loads Token
+            if (!File.Exists(Directory.GetCurrentDirectory() + "/settings.cnf"))
+            {
+                File.Create(Directory.GetCurrentDirectory() + "/settings.cnf").Close();
+            }
+            StreamReader sr = new StreamReader(Directory.GetCurrentDirectory() + "/settings.cnf");
+            string token = sr.ReadLine();
+            sr.Close();
+            return token;
         }
 
         public static float ColorToHSV(System.Drawing.Color color)
@@ -499,7 +531,6 @@ namespace Agdgbot
 
         private static void Client_Ready(object sender, EventArgs e)
         {
-            bot.Client.CurrentUser.Edit("", "AggyBot", "", "", new FileStream(Directory.GetCurrentDirectory() + "/boticon.png", FileMode.Open), ImageType.Png);
             bot.Client.SetGame("your demo");
         }
     }
