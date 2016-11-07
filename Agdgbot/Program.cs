@@ -9,14 +9,15 @@ using System.IO;
 using unirest_net.http;
 using IA.Events;
 using IA.Node;
+using Discord.WebSocket;
 
 namespace Agdgbot
 {
     class Program
     {
-        static Role colorStart;
-        static Role profStart;
-        static Role mutedRole;
+        static IRole colorStart;
+        static IRole profStart;
+        static IRole mutedRole;
 
         static ulong startColorId;
         static ulong startProfId;
@@ -27,22 +28,24 @@ namespace Agdgbot
         List<ulong> ColorIds = new List<ulong>();
         List<ulong> ProfeciencyIds = new List<ulong>();
 
-        static IABot bot;
+        static Bot bot;
 
         static uint shitpostsDoneWithMentions = 0;
         static uint messagesRecieved = 0;
-        static uint nodevs()
+        static async Task<uint> nodevs()
         {
-            Server s = bot.Client.Servers.First(x =>
+            IGuild s = bot.Client.Servers.First(x =>
             {
                 return x.Id == 121565307515961346;
             });
 
             uint outp = 0;
 
-            foreach (User x in s.Users)
+            IGuildUser[] u = (await s.GetUsersAsync()).ToArray();
+
+            foreach (IGuildUser x in u)
             {
-                if (x.HasRole(s.FindRoles("nodev").ElementAt(0)) || x.Roles.Count() <= 1) outp++;
+                if (x.GetPermissions(await s.GetDefaultChannelAsync())FindRoles("nodev").ElementAt(0) || x.Roles.Count() <= 1) outp++;
             }
 
             return outp;
@@ -56,11 +59,11 @@ namespace Agdgbot
         {
             uptime = DateTime.Now;
 
-            bot = new IABot(x =>
+            bot = new Bot(x =>
             {
-                x.botName = "Aggy";
-                x.botToken = "Bot " + GetToken();
-                x.botIdentifier = ">";
+                x.Name = "Aggy";
+                x.Token = GetToken();
+                x.Identifier = ">";
             });
             bot.AddDeveloper(121919449996460033);
             bot.AddDeveloper(121566705192402944);
@@ -104,8 +107,8 @@ namespace Agdgbot
                     int lowestposition = 999;
                     int highestposition = 0;
 
-                    List<Role> colors = new List<Role>();
-                    foreach(Role r in e.Server.Roles)
+                    List<IRole> colors = new List<IRole>();
+                    foreach(IRole r in e.Guild.Roles)
                     {
                         if (r.Position < colorStart.Position)
                         {
@@ -468,7 +471,7 @@ namespace Agdgbot
 
             bot.Client.MessageReceived += Client_MessageReceived;
             bot.Client.Ready += Client_Ready;
-            bot.Client.ServerAvailable += Client_ServerAvailable;
+            bot.Client.GuildAvailable += Client_GuildAvailable; ;
             bot.Connect();
         }
 
@@ -501,37 +504,38 @@ namespace Agdgbot
             return color.GetHue();
         }
 
-        private static void Client_MessageReceived(object sender, MessageEventArgs e)
+        private async Task Client_MessageReceived(SocketMessage e)
         {
-            if(e.Message.IsMentioningMe())
+            if(e.MentionedUsers.Contains(bot.Client.CurrentUser))
             {
                 shitpostsDoneWithMentions++;
             }
             messagesRecieved++;
         }
 
-        private static void Client_ServerAvailable(object sender, ServerEventArgs e)
+        private async Task Client_GuildAvailable(SocketGuild e)
         {
-            if (e.Server.Id == 121565307515961346)
+            if (e.Id == 121565307515961346)
             {
                 if (File.Exists(idFilePath))
                 {
                     StreamReader sr = new StreamReader(idFilePath);
                     startColorId = ulong.Parse(sr.ReadLine());
                     startProfId = ulong.Parse(sr.ReadLine());
-                    colorStart = e.Server.GetRole(startColorId);
-                    profStart = e.Server.GetRole(startProfId);
+                    colorStart = e.GetRole(startColorId);
+                    profStart = e.GetRole(startProfId);
                 }
                 else
                 {
                     Log.Warning("No ID's loaded.");
                 }
             }
+            await Task.CompletedTask;
         }
 
-        private static void Client_Ready(object sender, EventArgs e)
+        private static async Task Client_Ready()
         {
-            bot.Client.SetGame("your demo");
+            await bot.Client.SetGame("your demo");
         }
     }
 }
