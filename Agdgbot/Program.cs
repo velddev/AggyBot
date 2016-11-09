@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 using IA;
 using Discord;
 using System.IO;
-using unirest_net.http;
 using IA.Events;
 using IA.Node;
 using Discord.WebSocket;
+using IA.SDK;
 
 namespace Agdgbot
 {
@@ -32,24 +32,6 @@ namespace Agdgbot
 
         static uint shitpostsDoneWithMentions = 0;
         static uint messagesRecieved = 0;
-        static async Task<uint> nodevs()
-        {
-            IGuild s = bot.Client.Servers.First(x =>
-            {
-                return x.Id == 121565307515961346;
-            });
-
-            uint outp = 0;
-
-            IGuildUser[] u = (await s.GetUsersAsync()).ToArray();
-
-            foreach (IGuildUser x in u)
-            {
-                if (x.GetPermissions(await s.GetDefaultChannelAsync())FindRoles("nodev").ElementAt(0) || x.Roles.Count() <= 1) outp++;
-            }
-
-            return outp;
-        }
 
         static DateTime uptime;
 
@@ -63,37 +45,24 @@ namespace Agdgbot
             {
                 x.Name = "Aggy";
                 x.Token = GetToken();
-                x.Identifier = ">";
+                x.Prefix = PrefixValue.Mention;
             });
-            bot.AddDeveloper(121919449996460033);
-            bot.AddDeveloper(121566705192402944);
-            bot.AddDeveloper(101392521376055296);
-            bot.AddDeveloper(104252835167748096);
-            bot.AddDeveloper(191698267313143808);
-            bot.AddDeveloper(101603144827424768);
-            bot.AddDeveloper(101389503087792128);
 
-            // set color
-            bot.Events.AddCommandEvent(x =>
-            {
-                x.name = "check";
-                x.accessibility = IA.Events.EventAccessibility.ADMINONLY;
-                x.processCommand = (e, arg) =>
-                {
-                    e.Channel.SendMessage("check!");
-                };
-            });
+            bot.AddDeveloper(121919449996460033);
 
             // set color
             bot.Events.AddCommandEvent(x =>
             {
                 x.name = "setcolor";
-                x.accessibility = IA.Events.EventAccessibility.ADMINONLY;
-                x.processCommand = (e, arg) =>
+                x.accessibility = EventAccessibility.ADMINONLY;
+                x.processCommand = async (e, arg) =>
                 {
+                    IGuildUser eg = (e.Author as IGuildUser);
+
                     ulong colorid = 0;
                     colorid = ulong.Parse(arg.Trim('<', '>', '@', '&'));
-                    colorStart = e.Server.GetRole(colorid);
+                    colorStart = eg.Guild.GetRole(colorid);
+                    await Task.CompletedTask;
                 };
             });
 
@@ -102,13 +71,15 @@ namespace Agdgbot
             {
                 x.name = "sortcolors";
                 x.accessibility = EventAccessibility.ADMINONLY;
-                x.processCommand = (e, arg) =>
+                x.processCommand = async (e, arg) =>
                 {
+                    IGuildUser eg = (e.Author as IGuildUser);
+
                     int lowestposition = 999;
                     int highestposition = 0;
 
                     List<IRole> colors = new List<IRole>();
-                    foreach(IRole r in e.Guild.Roles)
+                    foreach(IRole r in eg.Guild.Roles)
                     {
                         if (r.Position < colorStart.Position)
                         {
@@ -127,14 +98,17 @@ namespace Agdgbot
                         }
                     }
 
-                    List<Role> sortedList = colors.OrderBy(c => ColorToHSV(System.Drawing.Color.FromArgb(c.Color.R, c.Color.B, c.Color.G))).ToList();
+                    List<IRole> sortedList = colors.OrderBy(c => ColorToHSV(System.Drawing.Color.FromArgb(c.Color.R, c.Color.B, c.Color.G))).ToList();
 
                     for (int i = 0; i < colors.Count; i++)
                     {
-                        sortedList[i].Edit(null, null, null, null, lowestposition + i);
+                        await sortedList[i].ModifyAsync(role =>
+                        {
+                            role.Position = lowestposition + i;
+                        });
                     }
 
-                    e.Channel.SendMessage("Sorted! " + lowestposition);
+                    await e.Channel.SendMessage("Sorted! " + lowestposition);
                 };
             });
 
@@ -142,18 +116,20 @@ namespace Agdgbot
             bot.Events.AddCommandEvent(x =>
             {
                 x.name = "setprof";
-                x.accessibility = IA.Events.EventAccessibility.ADMINONLY;
-                x.processCommand = (e, arg) =>
+                x.accessibility = EventAccessibility.ADMINONLY;
+                x.processCommand = async (e, arg) =>
                 {
+                    IGuildUser eg = (e.Author as IGuildUser);
+
                     ulong colorid = 0;
                     try
                     {
                         colorid = ulong.Parse(arg.Trim('<', '>', '@', '&'));
-                        profStart = e.Server.GetRole(colorid);
+                        profStart = eg.Guild.GetRole(colorid);
                     }
                     catch
                     {
-                        e.User.SendMessage("Failed to parse link.");
+                        await (await e.Author.CreateDMChannelAsync()).SendMessage("Failed to parse link.");
                     }
                 };
             });
@@ -162,14 +138,15 @@ namespace Agdgbot
             bot.Events.AddCommandEvent(x =>
             {
                 x.name = "save";
-                x.accessibility = IA.Events.EventAccessibility.ADMINONLY;
-                x.processCommand = (e, arg) =>
+                x.accessibility = EventAccessibility.ADMINONLY;
+                x.processCommand = async (e, arg) =>
                 {
                     StreamWriter sw = new StreamWriter(idFilePath);
                     sw.WriteLine(colorStart.Id);
                     sw.WriteLine(profStart.Id);
                     sw.Flush();
                     sw.Close();
+                    await Task.CompletedTask;
                 };
             });
 
@@ -177,10 +154,10 @@ namespace Agdgbot
             bot.Events.AddCommandEvent(x =>
             {
                 x.name = "showdividers";
-                x.accessibility = IA.Events.EventAccessibility.ADMINONLY;
-                x.processCommand = (e, arg) =>
+                x.accessibility = EventAccessibility.ADMINONLY;
+                x.processCommand = async (e, arg) =>
                 {
-                    e.Channel.SendMessage(colorStart.Id + " - " + colorStart.Name + "\n" + profStart.Id + " - " + profStart.Name);
+                    await e.Channel.SendMessage(colorStart.Id + " - " + colorStart.Name + "\n" + profStart.Id + " - " + profStart.Name);
                 };
             });
 
@@ -192,25 +169,22 @@ namespace Agdgbot
                 x.usage = new string[] { ">color Cyan" };
                 x.processCommand = async (e, arg) =>
                 {
+                    IGuildUser eg = (e.Author as IGuildUser);
+
                     ulong colorid = 0;
-                    Role r = null;
+                    IRole r = null;
+
                     try
                     {
                         colorid = ulong.Parse(arg.Trim('<', '>', '@', '&'));
-                        r = e.Server.GetRole(colorid);
+                        r = eg.Guild.GetRole(colorid);
                     }
                     catch
                     {
-                        try
-                        {
-                            r = e.Server.FindRoles(arg).ElementAt(0);
-                        }
-                        catch
-                        {
-                            await e.User.SendMessage("Please add the color you want.");
-                            return;
-                        }
+                        await e.Channel.SendMessage("Please add the color you want.");
+                        return;
                     }
+
                     if (r != null)
                     {
                         if (r.Position < colorStart.Position && r.Position > profStart.Position)
@@ -221,19 +195,19 @@ namespace Agdgbot
                                 return;
                             }
 
-                            List<Role> deleteRoles = new List<Role>();
-                            foreach (Role role in e.Server.Roles)
+                            List<IRole> deleteRoles = new List<IRole>();
+                            foreach (IRole role in eg.Guild.Roles)
                             {
                                 if (role.Color.ToString() != "#0")
                                 {
-                                    if (e.User.HasRole(role))
+                                    if (eg.RoleIds.Contains(role.Id))
                                     {
-                                        await e.User.RemoveRoles(role);
+                                        await eg.RemoveRolesAsync(role);
                                     }
                                 }
                             }
                             await Task.Delay(100);
-                            await e.User.AddRoles(r);
+                            await eg.AddRolesAsync(r);
                         }
                         else
                         {
@@ -251,11 +225,15 @@ namespace Agdgbot
                 x.accessibility = EventAccessibility.ADMINONLY;
                 x.processCommand = async (e, arg) =>
                 {
+                    IGuildUser eg = (e.Author as IGuildUser);
+
                     string[] allArgs = arg.Split(' ');
                     string name = allArgs[0];
                     int color = Convert.ToInt32(allArgs[1].Trim('#'), 16);
-                    Role r = await e.Server.CreateRole(name, ServerPermissions.None, new Color((uint)color), false, true);
-                    await r.Edit(null, null, null, null, colorStart.Position - 1);
+                    
+
+                    IRole r = await eg.Guild.CreateRoleAsync(name, null, new Color((uint)color), false);
+                    await r.ModifyAsync(z => z.Position = colorStart.Position - 1);
                     await e.Channel.SendMessage($"Created Color '{r.Name}' with '{r.Color}'");
                 };
             });
@@ -267,8 +245,10 @@ namespace Agdgbot
                 x.accessibility = EventAccessibility.ADMINONLY;
                 x.processCommand = async (e, arg) =>
                 {
-                    Role r = await e.Server.CreateRole(arg, ServerPermissions.None, Color.Default, false, true);
-                    await r.Edit(null, null, null, null, profStart.Position - 1);
+                    IGuildUser eg = (e.Author as IGuildUser);
+
+                    IRole r = await eg.Guild.CreateRoleAsync(arg, null, Color.Default, false);
+                    await r.ModifyAsync(skill => skill.Position = profStart.Position - 1);
                     await e.Channel.SendMessage($"Created Skill '{r.Name}'");
                 };
             });
@@ -281,29 +261,26 @@ namespace Agdgbot
                 x.usage = new string[] { ">addskill Unity" };
                 x.processCommand = async (e, arg) =>
                 {
+                    IGuildUser eg = (e.Author as IGuildUser);
+
                     ulong colorid = 0;
-                    Role r = null;
+                    IRole r = null;
+
                     try
                     {
                         colorid = ulong.Parse(arg.Trim('<', '>', '@', '&'));
-                        r = e.Server.GetRole(colorid);
+                        r = eg.Guild.GetRole(colorid);
                     }
                     catch
                     {
-                        try
-                        {
-                            r = e.Server.FindRoles(arg).ElementAt(0);
-                        }
-                        catch
-                        {
-                            return;
-                        }
+                        return;
                     }
+
                     if (r != null)
                     {
                         if (r.Position < profStart.Position)
                         {
-                            await e.User.AddRoles(r);
+                            await eg.AddRolesAsync(r);
                         }
                     }
 
@@ -318,29 +295,24 @@ namespace Agdgbot
                 x.usage = new string[] { ">removeskill Unity" };
                 x.processCommand = async (e, arg) =>
                 {
+                    IGuildUser eg = (e.Author as IGuildUser);
+
                     ulong colorid = 0;
-                    Role r = null;
+                    IRole r = null;
                     try
                     {
                         colorid = ulong.Parse(arg.Trim('<', '>', '@', '&'));
-                        r = e.Server.GetRole(colorid);
+                        r = eg.Guild.GetRole(colorid);
                     }
                     catch
                     {
-                        try
-                        {
-                            r = e.Server.FindRoles(arg).ElementAt(0);
-                        }
-                        catch
-                        {
-                            return;
-                        }
+                        return;
                     }
                     if (r != null)
                     {
                         if (r.Position < profStart.Position)
                         {
-                            await e.User.RemoveRoles(r);
+                            await eg.RemoveRolesAsync(r);
                         }
                     }
 
@@ -351,34 +323,37 @@ namespace Agdgbot
             bot.Events.AddCommandEvent(x =>
             {
                 x.name = "checkcolor";
-                x.processCommand = (e, arg) =>
+                x.processCommand = async (e, arg) =>
                 {
+                    IGuildUser eg = (e.Author as IGuildUser);
+
                     ulong colorid = 0;
-                    Role r = null;
+                    IRole r = null;
+
                     try
                     {
                         colorid = ulong.Parse(arg.Trim('<', '>', '@', '&'));
-                        r = e.Server.GetRole(colorid);
+                        r = eg.Guild.GetRole(colorid);
                     }
                     catch
                     {
                         try
                         {
-                            r = e.Server.FindRoles(arg).ElementAt(0);
+                            r = eg.Guild.Roles.First(role => role.Name == arg);
                         }
                         catch
                         {
-                            e.User.SendMessage("Please add the color you want.");
+                            await e.Channel.SendMessage("Please add the color you want.");
                             return;
                         }
                     }
                     if (r != null)
                     {
                         
-                        e.Channel.SendMessage(r.Name + " is " + ((r.Color.ToString() != "#0") ? "a color" : "NOT a " + ((r.Name == "Unity")?"engine":"color")));
-                        if(r.Color!= Color.Default)
+                        await e.Channel.SendMessage(r.Name + " is " + ((r.Color.ToString() != "#0") ? "a color" : "NOT a " + ((r.Name == "Unity")?"engine":"color")));
+                        if(r.Color.ToString() != "#0")
                         {
-                            e.Channel.SendMessage("instead, it is " + r.Color.ToString());
+                            await e.Channel.SendMessage("instead, it is " + r.Color.ToString());
                         }
                     }
                 };
@@ -389,9 +364,15 @@ namespace Agdgbot
             {
                 x.name = "stats";
                 x.accessibility = EventAccessibility.ADMINONLY;
-                x.processCommand = (e, arg) =>
+                x.processCommand = async (e, arg) =>
                 {
-                    e.Channel.SendMessage($"Messages Recieved: {messagesRecieved}\nAmount were shitposts involving me: {shitpostsDoneWithMentions}\n\nUptime: {(DateTime.Now - uptime).ToString().Split('.')[0]}\n\n Total Users: {e.Server.UserCount}\n Total Nodevs: {nodevs()}");
+                    int userCount = (await (e.Author as IGuildUser).Guild.GetUsersAsync()).Count;
+
+                    await e.Channel.SendMessage($@"
+                        Messages Recieved: {messagesRecieved}\n
+                        Amount were shitposts involving me: {shitpostsDoneWithMentions}\n\n
+                        Uptime: {(DateTime.Now - uptime).ToString().Split('.')[0]}\n\n
+                        Total Users: {userCount}");
                 };
             });
 
@@ -400,26 +381,9 @@ namespace Agdgbot
             {
                 x.name = "purge";
                 x.accessibility = EventAccessibility.ADMINONLY;
-                x.processCommand = (e, arg) =>
+                x.processCommand = async (e, arg) =>
                 {
-                    User u = e.Channel.Users.First(z => z.Id == ulong.Parse(arg.Trim('<', '>', '@', '!')));
-                    e.Channel.DownloadMessages();
-
-                    List<Message> deleteMessages = new List<Message>();
-                    deleteMessages.Add(e.Message);
-
-
-                    foreach(Message m in e.Channel.Messages)
-                    {
-                        if(m.User == u)
-                        {
-                            deleteMessages.Add(m);
-                            Log.Message(m.Text);
-                        }
-                    }
-
-                    e.Channel.DeleteMessages(deleteMessages.ToArray());
-                    e.Channel.SendMessageAndDelete("Deleted " + deleteMessages.Count + " messages", 4);
+                   await bot.Client.GetGuild((e as IGuildUser).GuildId).PruneUsersAsync(1);
                 };
             });
 
@@ -429,14 +393,17 @@ namespace Agdgbot
                 x.name = "mute";
                 x.processCommand = async (e, arg) =>
                 {
-                    if (e.Message.MentionedUsers.Count() > 0 && e.Message.RawText.Split(' ').Length > 1)
+                    if (e.MentionedUserIds.Count() > 0 && e.Content.Split(' ').Length > 1)
                     {
-                        int minutes = int.Parse(e.Message.RawText.Split(' ')[2]);
+                        IGuildUser eg = (e.Author as IGuildUser);
+                        int minutes = int.Parse(e.Content.Split(' ')[2]);
 
-                        await e.Message.MentionedUsers.ElementAt(0).AddRoles(e.Server.FindRoles("muted").First());
-                        await e.Channel.SendMessageAndDelete($"muted `{e.Message.MentionedUsers.First().Name}` for `{minutes}` minutes", 5);
+                        IGuildUser mentionedUser = await e.Channel.GetUserAsync(e.MentionedUserIds.ElementAt(0)) as IGuildUser;
+
+                        await mentionedUser.AddRolesAsync(eg.Guild.Roles.FirstOrDefault(r => r.Name == "muted"));
+                        await e.Channel.SendMessage($"muted `{ (e.Channel.GetUserAsync(e.MentionedUserIds.First())).GetAwaiter().GetResult().Username }` for `{minutes}` minutes");
                         await Task.Delay(minutes * 60000);
-                        await e.Message.MentionedUsers.ElementAt(0).RemoveRoles(e.Server.FindRoles("muted").First());
+                        await mentionedUser.RemoveRolesAsync(eg.Guild.Roles.FirstOrDefault(r => r.Name == "muted"));
 
                     }
                 };
@@ -448,7 +415,7 @@ namespace Agdgbot
                 x.name = "help";
                 x.processCommand = async (e, arg) =>
                 {
-                    await e.User.SendMessage(await bot.Events.ListCommands(e));
+                    await (await e.Author.CreateDMChannelAsync()).SendMessage(await bot.Events.ListCommands(e));
                 };
             });
 
@@ -459,8 +426,8 @@ namespace Agdgbot
                 x.cooldown = 30;
                 x.checkCommand = (e, a, c) =>
                 {
-                    Profile me = bot.Client.CurrentUser;
-                    return e.Message.RawText.StartsWith(me.Mention) && (e.Channel.Id == 121566911837241344 || e.Channel.Id == 226393903216066561);
+                    SocketSelfUser me = bot.Client.CurrentUser;
+                    return e.Content.StartsWith(me.Mention) && (e.Channel.Id == 121566911837241344 || e.Channel.Id == 226393903216066561);
                 };
                 x.processCommand = async (e, arg) =>
                 {
