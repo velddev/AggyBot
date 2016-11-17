@@ -59,12 +59,6 @@
     <Reference Include="IA.SDK">
       <HintPath>..\..\IA\IA\bin\Debug\IA.SDK.dll</HintPath>
     </Reference>
-    <Reference Include="jint">
-      <HintPath>..\..\IA\IA\bin\Debug\jint.dll</HintPath>
-    </Reference>
-    <Reference Include="Jurassic">
-      <HintPath>..\..\IA\IA\bin\Debug\Jurassic.dll</HintPath>
-    </Reference>
     <Reference Include="Microsoft.Win32.Primitives">
       <HintPath>..\..\IA\IA\bin\Debug\Microsoft.Win32.Primitives.dll</HintPath>
     </Reference>
