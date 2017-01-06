@@ -6,22 +6,22 @@ using System.Threading.Tasks;
 using IA;
 using Discord;
 using System.IO;
-using IA.Events;
-using IA.Node;
 using Discord.WebSocket;
 using IA.SDK;
+using IA.Node;
+using IA.SDK.Interfaces;
 
 namespace Agdgbot
 {
     class Program
     {
-        static IRole colorStart;
-        static IRole profStart;
-        static IRole mutedRole;
+        static IDiscordRole colorStart = null;
+        static IDiscordRole profStart = null;
+        static IDiscordRole mutedRole = null;
 
-        static ulong startColorId;
-        static ulong startProfId;
-        static ulong mutedRoleId;
+        static ulong startColorId = 0;
+        static ulong startProfId = 0;
+        static ulong mutedRoleId = 0;
 
         static string idFilePath = Directory.GetCurrentDirectory() + "/ids.txt";
 
@@ -57,11 +57,9 @@ namespace Agdgbot
                 x.accessibility = EventAccessibility.ADMINONLY;
                 x.processCommand = async (e, arg) =>
                 {
-                    IGuildUser eg = (e.Author as IGuildUser);
-
                     ulong colorid = 0;
                     colorid = ulong.Parse(arg.Trim('<', '>', '@', '&'));
-                    colorStart = eg.Guild.GetRole(colorid);
+                    colorStart = await e.Guild.GetRole(colorid);
                     await Task.CompletedTask;
                 };
             });
@@ -119,18 +117,33 @@ namespace Agdgbot
                 x.accessibility = EventAccessibility.ADMINONLY;
                 x.processCommand = async (e, arg) =>
                 {
-                    IGuildUser eg = (e.Author as IGuildUser);
-
                     ulong colorid = 0;
                     try
                     {
                         colorid = ulong.Parse(arg.Trim('<', '>', '@', '&'));
-                        profStart = eg.Guild.GetRole(colorid);
+                        profStart = await e.Guild.GetRole(colorid);
                     }
                     catch
                     {
-                        await (await e.Author.CreateDMChannelAsync()).SendMessage("Failed to parse link.");
+                        await e.Author.SendMessage("Failed to parse link.");
                     }
+                };
+            });
+
+            // set muted
+            bot.Events.AddCommandEvent(x =>
+            {
+                x.name = "setmute";
+                x.accessibility = EventAccessibility.ADMINONLY;
+                x.processCommand = async (e, arg) =>
+                {
+                    if (e.MentionedRoleIds.Count > 0)
+                    {
+                        mutedRole = await e.Guild.GetRole(e.MentionedRoleIds.First());
+                        await e.Channel.SendMessage("Set muted role.");
+                        return;
+                    }
+                    await e.Channel.SendMessage("Failed to set muted role.");
                 };
             });
 
@@ -395,15 +408,14 @@ namespace Agdgbot
                 {
                     if (e.MentionedUserIds.Count() > 0 && e.Content.Split(' ').Length > 1)
                     {
-                        IGuildUser eg = (e.Author as IGuildUser);
                         int minutes = int.Parse(e.Content.Split(' ')[2]);
 
-                        IGuildUser mentionedUser = await e.Channel.GetUserAsync(e.MentionedUserIds.ElementAt(0)) as IGuildUser;
+                        IDiscordUser mentionedUser = await e.Guild.GetUserAsync(e.MentionedUserIds.ElementAt(0));
 
-                        await mentionedUser.AddRolesAsync(eg.Guild.Roles.FirstOrDefault(r => r.Name == "muted"));
-                        await e.Channel.SendMessage($"muted `{ (e.Channel.GetUserAsync(e.MentionedUserIds.First())).GetAwaiter().GetResult().Username }` for `{minutes}` minutes");
+                        await mentionedUser.AddRoleAsync(mutedRole);
+                        await e.Channel.SendMessage($"muted `{ (e.Guild.GetUserAsync(e.MentionedUserIds.First())).GetAwaiter().GetResult().Username }` for `{minutes}` minutes");
                         await Task.Delay(minutes * 60000);
-                        await mentionedUser.RemoveRolesAsync(eg.Guild.Roles.FirstOrDefault(r => r.Name == "muted"));
+                        await mentionedUser.RemoveRoleAsync(mutedRole);
 
                     }
                 };
@@ -415,7 +427,7 @@ namespace Agdgbot
                 x.name = "help";
                 x.processCommand = async (e, arg) =>
                 {
-                    await (await e.Author.CreateDMChannelAsync()).SendMessage(await bot.Events.ListCommands(e));
+                    await e.Author.SendMessage(await bot.Events.ListCommands(e));
                 };
             });
 
@@ -436,9 +448,9 @@ namespace Agdgbot
                 };
             });
 
-            bot.Client.MessageReceived += Client_MessageReceived;
             bot.Client.Ready += Client_Ready;
-            bot.Client.GuildAvailable += Client_GuildAvailable; ;
+            bot.Client.GuildAvailable += Client_GuildAvailable;
+
             bot.Connect();
         }
 
@@ -471,26 +483,23 @@ namespace Agdgbot
             return color.GetHue();
         }
 
-        private async Task Client_MessageReceived(SocketMessage e)
-        {
-            if(e.MentionedUsers.Contains(bot.Client.CurrentUser))
-            {
-                shitpostsDoneWithMentions++;
-            }
-            messagesRecieved++;
-        }
-
         private async Task Client_GuildAvailable(SocketGuild e)
         {
+            RuntimeGuild g = new RuntimeGuild(e);
+
             if (e.Id == 121565307515961346)
             {
                 if (File.Exists(idFilePath))
                 {
                     StreamReader sr = new StreamReader(idFilePath);
                     startColorId = ulong.Parse(sr.ReadLine());
+                    colorStart = await g.GetRole(startColorId);
+
                     startProfId = ulong.Parse(sr.ReadLine());
-                    colorStart = e.GetRole(startColorId);
-                    profStart = e.GetRole(startProfId);
+                    profStart = await g.GetRole(startProfId);
+
+                    mutedRoleId = ulong.Parse(sr.ReadLine());
+                    mutedRole = await g.GetRole(mutedRoleId);
                 }
                 else
                 {
@@ -502,7 +511,7 @@ namespace Agdgbot
 
         private static async Task Client_Ready()
         {
-            await bot.Client.SetGame("your demo");
+            await bot.Client.SetGameAsync("your demo");
         }
     }
 }
